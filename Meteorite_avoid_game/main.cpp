@@ -1,0 +1,173 @@
+#include "my3dlib.h"
+
+struct Enemy 
+{
+	float x, z; // 現在の座標
+	BOOL used;  // 使用中を示すフラグ
+};
+
+int hjikimodel, hbackmodel, hinsekimodel;
+float mx = 0.0f, mz = -2.0f; // 自キャラの座標
+DWORD lasttime;             // 前回のループ終了時間(ミリ秒)
+float looptime = 0;         // 1ループにかかる時間(秒)
+float speed = 5.0f;         // 5.0m/s
+float angle = 0;
+float anglesp = 90;         // 90度/s
+const int MAXENEMY = 50;
+Enemy enemys[MAXENEMY];
+
+// モデルのロード
+HRESULT LoadModels()
+{
+	hjikimodel = LoadModel(_T("catsenkan.x"));
+	if (hjikimodel == -1) return E_FAIL;
+	hbackmodel = LoadModel(_T("back01.x"));
+	if (hbackmodel == -1) return E_FAIL;
+	hinsekimodel = LoadModel(_T("inseki.x"));
+	if (hinsekimodel == -1) return E_FAIL;
+	return S_OK;
+}
+
+// 環境光・ビュー・射影変換の設定
+void SetViews()
+{
+	// 環境光の設定
+	g_pd3dDevice->SetRenderState(D3DRS_AMBIENT, 0xffffffff);
+	// ビュー変換
+	D3DXVECTOR3 vEyePt(0.0f, 13.0f, -5.0f);
+	D3DXVECTOR3 vLookatPt(0.0f, 0.0f, -1.0f);
+	D3DXVECTOR3 vUpVec(0.0f, 1.0f, 0.0f);
+	D3DXMATRIXA16 matView;
+	D3DXMatrixLookAtLH( &matView, &vEyePt, &vLookatPt, &vUpVec);
+	g_pd3dDevice->SetTransform(D3DTS_VIEW, &matView);
+	// 射影変換
+	D3DXMATRIXA16 matProj;
+	D3DXMatrixPerspectiveFovLH(&matProj, D3DX_PI/4, g_aspect, 1.0f, 100.0f);
+	g_pd3dDevice->SetTransform(D3DTS_PROJECTION, &matProj);
+	// 敵配列の初期化
+	ZeroMemory(&enemys, sizeof(Enemy)*MAXENEMY);
+	// タイマー始動
+	setTimer(0, 3000);
+}
+
+// 隕石の設定
+void AddComet()
+{
+	for (int i = 0; i < MAXENEMY; i = i + 1)
+	{
+		if (enemys[i].used == FALSE)
+		{
+			enemys[i].x = (float)(rand()%29)/2 - 7;
+			enemys[i].z = 7;
+			enemys[i].used = TRUE;
+			break;
+		}
+	}
+}
+
+void GameMain()
+{
+	const char *keys = GetKeyState();
+	float v = 0;
+	if (keys != NULL)
+	{
+		if (keys[DIK_UP] & 0x80)  v = speed * looptime;
+		if (keys[DIK_DOWN]&0x80)  v = - speed * looptime;
+		if (keys[DIK_LEFT]&0x80)  angle = angle - anglesp * looptime;
+		if (keys[DIK_RIGHT]&0x80) angle = angle + anglesp * looptime;
+		if (angle < 0) angle = angle + 360;
+		if (angle > 360) angle = angle - 360;
+	}
+	float r = D3DXToRadian(angle);
+	mx = mx + v *sinf(r);
+	mz = mz + v *cosf(r);
+	if (mx < -7) mx = -7;
+	if (mx > 7)  mx = 7;
+	if (mz < -6) mz = -6;
+	if (mz > 6)  mz = 6;
+
+	
+	// 自キャラの表示
+	// ワールド座標
+	D3DXMATRIXA16 matWorld1, matWorld2;
+	D3DXMatrixTranslation(&matWorld1, mx, 0.0f, mz);
+	D3DXMatrixRotationY(&matWorld2, r);
+	matWorld2 *= matWorld1;
+	g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
+	RenderModel(hjikimodel);
+	// 背景の表示
+	D3DXMatrixTranslation(&matWorld1, 0.0f, -1.0f, 0.0f);
+	D3DXMatrixScaling( &matWorld2, 1.3f, 1.0f, 1.2f);
+	matWorld2 *= matWorld1;
+	g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
+	RenderModel(hbackmodel);
+	// 隕石の出現
+	if (isTimerGoal(0) == TRUE)
+	{
+		AddComet();
+		setTimer(0, 2000);
+	}
+	// 隕石の表示,移動
+	for (int i = 0; i < MAXENEMY; i = i + 1)
+	{
+		if (enemys[i].used == TRUE)
+		{
+			enemys[i].z = enemys[i].z - 2.5f * looptime;   // 移動
+			if (enemys[i].z < -7.5) enemys[i].used = FALSE; // 画面外に出たら消滅
+			D3DXMatrixTranslation(&matWorld1, enemys[i].x, 0.0f, enemys[i].z);
+			D3DXMatrixRotationY(&matWorld2, (float)timeGetTime()/1000);
+			matWorld2 *= matWorld1;
+			g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
+			RenderModel(hinsekimodel);
+			if ((pow(enemys[i].x - mx, 2)+pow(enemys[i].z-mz, 2)) < 1)
+			{
+				// 衝突している
+				enemys[i].used = FALSE;
+			}
+		}
+	}
+}
+
+void Render()
+{
+	g_pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 255), 1.0f, 0);
+
+	if (SUCCEEDED(g_pd3dDevice->BeginScene()))
+	{
+		GameMain();
+		g_pd3dDevice->EndScene();
+	}
+	g_pd3dDevice->Present(NULL, NULL, NULL, NULL);
+}
+
+// WinMain関数
+INT WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, INT)
+{
+	srand(timeGetTime());
+	if (SUCCEEDED(InitD3DWindow(_T("隕石ゲーム"), 640, 480)))
+	{
+		if (FAILED(LoadModels())) return 0; // モデルのロード
+		SetViews();                         // 環境光・ビュー・射影変換の設定
+		// メッセージループ
+		lasttime = timeGetTime();           // ループ開始直前の時間を計測
+		MSG msg = { 0 };
+		while (msg.message != WM_QUIT)
+		{
+			if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+			else
+			{
+				Render();
+				DWORD curtime = timeGetTime();
+				looptime = (float)(curtime - lasttime) / 1000.0f;
+				lasttime = curtime;
+			}
+		}
+	}
+
+	UnregisterClass(_T("D3D Window Class"), GetModuleHandle(NULL));
+	return 0;
+}
