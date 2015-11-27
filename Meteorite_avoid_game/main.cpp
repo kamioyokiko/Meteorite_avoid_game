@@ -6,7 +6,7 @@ struct Enemy
 	BOOL used;  // 使用中を示すフラグ
 };
 
-int hjikimodel, hbackmodel, hinsekimodel;
+int hjikimodel, hbackmodel, hinsekimodel, hbakumodel;
 float mx = 0.0f, mz = -2.0f; // 自キャラの座標
 DWORD lasttime;             // 前回のループ終了時間(ミリ秒)
 float looptime = 0;         // 1ループにかかる時間(秒)
@@ -15,6 +15,46 @@ float angle = 0;
 float anglesp = 90;         // 90度/s
 const int MAXENEMY = 50;
 Enemy enemys[MAXENEMY];
+
+enum { GM_MAIN, GM_OVER }; // ゲームモード
+int gamemode = GM_MAIN;
+
+// 関数プロトタイプ宣言
+void SetViews(void);
+void GameMain(void);
+
+// ゲームオーバーの処理
+void GameOver()
+{
+	GameMain();
+	if (getPassedTime(1) < 2000)
+	{
+		// 自キャラの生成
+		D3DXMATRIXA16 matWorld1, matWorld2, matWorld3;
+		D3DXMatrixTranslation(&matWorld1, mx, 0.0f, mz);
+		D3DXMatrixRotationY(&matWorld2, D3DXToRadian(angle));
+		float pt = (float)getPassedTime(1);
+		D3DXMatrixScaling(&matWorld3, 1.0f+pt/5000.0f, 1.0f+pt/5000.0f, 1.0f+pt/5000.0f);
+		matWorld3 = matWorld3 * matWorld2 * matWorld1;
+		g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld3);
+		RenderModel(hjikimodel);
+		// 爆風の表示
+		D3DXMatrixScaling(&matWorld3, 1.0f + pt / 100.0f, 1.0f + pt / 100.0f, 1.0f + pt / 100.0f);
+		D3DXMatrixRotationY(&matWorld2, (float)timeGetTime()/1000);
+		matWorld3 = matWorld3 * matWorld2 * matWorld1;
+		g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld3);
+		RenderModel(hbakumodel);
+	}
+
+	if (getPassedTime(1) > 15000)
+	{
+		gamemode = GM_MAIN;
+		mx = 0.0f;
+		mz = -2.0f;
+		angle = 0;
+		SetViews();
+	}
+}
 
 // モデルのロード
 HRESULT LoadModels()
@@ -25,6 +65,8 @@ HRESULT LoadModels()
 	if (hbackmodel == -1) return E_FAIL;
 	hinsekimodel = LoadModel(_T("inseki.x"));
 	if (hinsekimodel == -1) return E_FAIL;
+	hbakumodel = LoadModel(_T("bakuha.x"));
+	if (hbakumodel == -1) return E_FAIL;
 	return S_OK;
 }
 
@@ -69,7 +111,7 @@ void GameMain()
 {
 	const char *keys = GetKeyState();
 	float v = 0;
-	if (keys != NULL)
+	if (keys != NULL && gamemode == GM_MAIN)
 	{
 		if (keys[DIK_UP] & 0x80)  v = speed * looptime;
 		if (keys[DIK_DOWN]&0x80)  v = - speed * looptime;
@@ -90,11 +132,14 @@ void GameMain()
 	// 自キャラの表示
 	// ワールド座標
 	D3DXMATRIXA16 matWorld1, matWorld2;
-	D3DXMatrixTranslation(&matWorld1, mx, 0.0f, mz);
-	D3DXMatrixRotationY(&matWorld2, r);
-	matWorld2 *= matWorld1;
-	g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
-	RenderModel(hjikimodel);
+	if (gamemode == GM_MAIN)
+	{
+		D3DXMatrixTranslation(&matWorld1, mx, 0.0f, mz);
+		D3DXMatrixRotationY(&matWorld2, r);
+		matWorld2 *= matWorld1;
+		g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
+		RenderModel(hjikimodel);
+	}
 	// 背景の表示
 	D3DXMatrixTranslation(&matWorld1, 0.0f, -1.0f, 0.0f);
 	D3DXMatrixScaling( &matWorld2, 1.3f, 1.0f, 1.2f);
@@ -119,10 +164,11 @@ void GameMain()
 			matWorld2 *= matWorld1;
 			g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld2);
 			RenderModel(hinsekimodel);
-			if ((pow(enemys[i].x - mx, 2)+pow(enemys[i].z-mz, 2)) < 1)
+			if ((pow(enemys[i].x - mx, 2)+pow(enemys[i].z-mz, 2)) < 1 && (gamemode == GM_MAIN))
 			{
 				// 衝突している
-				enemys[i].used = FALSE;
+				gamemode = GM_OVER;
+				setTimer(1, 0);
 			}
 		}
 	}
@@ -134,7 +180,15 @@ void Render()
 
 	if (SUCCEEDED(g_pd3dDevice->BeginScene()))
 	{
-		GameMain();
+		switch(gamemode)
+		{
+			case GM_MAIN:
+				GameMain();
+				break;
+			case GM_OVER:
+				GameOver();
+				break;
+		}
 		g_pd3dDevice->EndScene();
 	}
 	g_pd3dDevice->Present(NULL, NULL, NULL, NULL);
