@@ -29,11 +29,19 @@ void GameOver()
 	GameMain();
 	if (getPassedTime(1) < 2000)
 	{
+		float pt = (float)getPassedTime(1);
+		// アルファブレンディング
+		g_pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE); // アルファブレンディングを有効にしている
+		g_pd3dDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_BLENDFACTOR);
+		g_pd3dDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_ONE);
+		float a = 1.0f - pt / 2000;
+		g_pd3dDevice->SetRenderState(D3DRS_BLENDFACTOR, D3DCOLOR_COLORVALUE(a,a,a,a));
+
 		// 自キャラの生成
 		D3DXMATRIXA16 matWorld1, matWorld2, matWorld3;
 		D3DXMatrixTranslation(&matWorld1, mx, 0.0f, mz);
 		D3DXMatrixRotationY(&matWorld2, D3DXToRadian(angle));
-		float pt = (float)getPassedTime(1);
+		
 		D3DXMatrixScaling(&matWorld3, 1.0f+pt/5000.0f, 1.0f+pt/5000.0f, 1.0f+pt/5000.0f);
 		matWorld3 = matWorld3 * matWorld2 * matWorld1;
 		g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld3);
@@ -44,6 +52,7 @@ void GameOver()
 		matWorld3 = matWorld3 * matWorld2 * matWorld1;
 		g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld3);
 		RenderModel(hbakumodel);
+		g_pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE); // アルファブレンディングを無効にしている
 	}
 
 	if (getPassedTime(1) > 15000)
