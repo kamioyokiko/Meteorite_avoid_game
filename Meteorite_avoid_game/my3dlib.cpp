@@ -11,7 +11,27 @@ LPDIRECTINPUTDEVICE8 g_pDIDevice  = NULL;
 char                 g_keys[256];
 const int            MAXTIMER     = 16;
 DWORD                g_goaltimes[MAXTIMER];
+const int            MAXFONT = 16;
+LPD3DXFONT           g_pxfonts[MAXFONT];
+LPD3DXSPRITE         g_ptextsprite = NULL;
 
+
+int CreateGameFont(LPCTSTR fontname, int height, UINT weight)
+{
+	// 空いている要素を探す
+	int idx;
+	for (idx = 0; idx < MAXFONT; idx=idx+1)
+	{
+		if (g_pxfonts[idx] == NULL) break;
+	}
+	if (idx >= MAXFONT) return -1;
+
+	// フォントを作成する
+	HRESULT hr = D3DXCreateFont(g_pd3dDevice, -height, 0, weight, 1, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, fontname, &g_pxfonts[idx]);
+	if (FAILED(hr)) return -1;
+
+	return idx;
+}
 
 const char *GetKeyState()
 {
@@ -27,6 +47,12 @@ const char *GetKeyState()
 // リソースの解放
 void CleanupD3D()
 {
+	for (int i = 0; i < MAXFONT; i = i + 1)
+	{
+		if (g_pxfonts[i]) g_pxfonts[i]->Release();
+	}
+	if (g_ptextsprite) g_ptextsprite->Release();
+
 	for (int i = 0; i < MAXMODEL; i = i + 1)
 	{
 		if (g_models[i].used == TRUE)
@@ -153,6 +179,7 @@ DWORD getPassedTime(int idx)
 // ウィンドウモードでD3D初期化
 HRESULT InitD3DWindow(LPCTSTR wintitle, int w, int h) {
 	ZeroMemory(&g_models, sizeof(Model)*MAXMODEL);
+	ZeroMemory(&g_pxfonts, sizeof(LPD3DXFONT)*MAXFONT);
 	// ウィンドウクラス作成
 	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, MsgProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("D3D Window Class"), NULL};
 	RegisterClassEx(&wc);
@@ -195,6 +222,10 @@ HRESULT InitD3DWindow(LPCTSTR wintitle, int w, int h) {
 		return E_FAIL;
 	g_pDIDevice->SetDataFormat(&c_dfDIKeyboard);
 	g_pDIDevice->SetCooperativeLevel(hWnd, DISCL_FOREGROUND|DISCL_NONEXCLUSIVE);
+
+	// テキストスプライトの作成
+	if (FAILED(D3DXCreateSprite(g_pd3dDevice, &g_ptextsprite)))
+		return E_FAIL;
 
 	return S_OK;
 }

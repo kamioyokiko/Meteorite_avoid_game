@@ -19,6 +19,8 @@ Enemy enemys[MAXENEMY];
 enum { GM_MAIN, GM_OVER }; // ゲームモード
 int gamemode = GM_MAIN;
 
+int hgofont;               // フォントハンドル
+
 // 関数プロトタイプ宣言
 void SetViews(void);
 void GameMain(void);
@@ -55,6 +57,16 @@ void GameOver()
 		g_pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE); // アルファブレンディングを無効にしている
 	}
 
+	if (getPassedTime(1) > 3000)
+	{
+		RECT rc = {1, 161, 641, 261};
+		g_ptextsprite->Begin(D3DXSPRITE_ALPHABLEND | D3DXSPRITE_SORT_TEXTURE);
+		g_pxfonts[hgofont]->DrawText(g_ptextsprite, _T("GAME OVER"), -1, &rc, DT_CENTER|DT_CENTER, D3DCOLOR_COLORVALUE(0, 1.0f, 1.0f, 1.0f));
+		SetRect(&rc, 0, 160, 640, 260);
+		g_pxfonts[hgofont]->DrawText(g_ptextsprite, _T("GAME OVER"), -1, &rc, DT_CENTER | DT_VCENTER, D3DCOLOR_COLORVALUE(1.0f, 0, 0, 1.0f));
+		g_ptextsprite->End();
+	}
+
 	if (getPassedTime(1) > 15000)
 	{
 		gamemode = GM_MAIN;
@@ -76,6 +88,12 @@ HRESULT LoadModels()
 	if (hinsekimodel == -1) return E_FAIL;
 	hbakumodel = LoadModel(_T("bakuha.x"));
 	if (hbakumodel == -1) return E_FAIL;
+
+	hgofont = CreateGameFont(_T("ARIAL"), 60, FW_BOLD);
+	if (hgofont == -1) return E_FAIL;
+	g_pxfonts[hgofont]->PreloadText(_T("GAMEOVER"), 7); // GAMEOVERという文字をプリロード
+	g_pxfonts[hgofont]->PreloadCharacters(_T('A'), _T('Z')); // 文字コードの「A」から「Z」までをプリロード
+
 	return S_OK;
 }
 

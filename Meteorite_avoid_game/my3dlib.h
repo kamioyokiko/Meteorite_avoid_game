@@ -18,6 +18,8 @@ extern LPDIRECT3D9       g_pD3D;
 extern LPDIRECT3DDEVICE9 g_pd3dDevice;
 extern float             g_aspect;
 extern Model             g_models[];
+extern LPD3DXFONT        g_pxfonts[];
+extern LPD3DXSPRITE      g_ptextsprite;
 
 // 関数プロトタイプ宣言
 HRESULT InitD3DWindow(LPCTSTR wintitle, int w ,int h);
@@ -27,3 +29,4 @@ const char *GetKeyState();
 void setTimer(int idx, DWORD time);
 BOOL isTimerGoal(int idx);
 DWORD getPassedTime(int idx);
+int CreateGameFont(LPCTSTR fontname, int height, UINT weight);
